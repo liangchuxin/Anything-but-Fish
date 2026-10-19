@@ -13,6 +13,7 @@ Anything but Fish began as a [course proposal](https://github.com/liangchuxin/ag
 - [Celia Liang](https://github.com/liangchuxin)
 - [Jonas Chen](https://github.com/JonasChenJusFox)
 - [Anthony Wang](https://github.com/aw4580)
+- [Nigina Rashidova](https://github.com/monbbdzy)
 
 ## Documentation
 
