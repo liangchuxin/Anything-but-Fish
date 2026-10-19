@@ -10,7 +10,7 @@ The current prototype starts at the main screen. Some screens and interactions a
 
 ## App Map
 
-The main screen leads to the game, NPC conversations, collections, and plot reference pages. The map shows the main sections and their related screens and controls.
+The welcome screen leads to sign-up and login, with password recovery available from login. After logging in, the main screen leads to the game, NPC conversations, collections, and plot reference pages.
 
 ![App map](ux-design/app-map.png)
 
