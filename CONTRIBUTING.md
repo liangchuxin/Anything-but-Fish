@@ -20,8 +20,8 @@ Roles rotate each sprint. Everyone contributes to design and development.
 1. Create or claim a Task or Spike Issue before starting work. Add the appropriate `task` or `spike` label and sprint label. Link Tasks to the relevant User Story Issues.
 2. Create a branch in this shared repository. Include the Task or Spike Issue number and a short description; include the User Story number when applicable.
 3. Work under your own GitHub account. Make small commits with descriptive, single-line messages and push progress between standups.
-4. Open a pull request into this repository's `main` branch. Link the related Issue and briefly describe the change and how it was checked. Move the task to **Awaiting review**.
-5. Another teammate reviews and merges the PR using **Create a merge commit**. Do not push directly to `main` or merge your own PR. Check the work and run relevant tests before merging, then mark the completed task **Done**.
+4. Open a pull request into this repository's `master` branch. Link the related Issue and briefly describe the change and how it was checked. Move the task to **Awaiting review**.
+5. Another teammate reviews and merges the PR using **Create a merge commit**. Do not push directly to `master` or merge your own PR. Check the work and run relevant tests before merging, then mark the completed task **Done**.
 
 Keep Issue assignments and board statuses current.
 
@@ -30,8 +30,8 @@ Keep Issue assignments and board statuses current.
 Install Git and clone the shared repository:
 
 ```bash
-git clone https://github.com/liangchuxin/Anything-but-Fish.git
-cd Anything-but-Fish
+git clone https://github.com/agile-students-fall2026/generic-mern-stack-project-anything-but-fish.git
+cd generic-mern-stack-project-anything-but-fish
 ```
 
 Set your Git username to match your GitHub username and use your own email.
