@@ -16,12 +16,7 @@ import ChooseCharacter from "./components/ChooseCharacter";
 import CharacterChat from "./components/CharacterChat";
 import Inventory from "./components/Inventory";
 import Collections from "./components/Collections";
-import CollectedObjects from "./components/CollectedObjects";
 import Plots from "./components/Plots";
-import CharacterBiographies from "./components/CharacterBiographies";
-import ChapterSelection from "./components/ChapterSelection";
-import ChapterText from "./components/ChapterText";
-import ObjectDescriptions from "./components/ObjectDescriptions";
 
 function App() {
   return (
@@ -40,7 +35,7 @@ function App() {
           <Route path="/game/:page" element={<Game />} />
           <Route path="/game/:page/settings" element={<Settings />} />
           <Route path="/game/:page/save-load" element={<SaveLoad />} />
-          {/* Uncomment these routes and the GameOld import to view the original reader.
+          {/* Old game reader
           <Route path="/game-old" element={<GameOld />} />
           <Route path="/game-old/:page" element={<GameOld />} />
           <Route path="/game-old/:page/settings" element={<Settings gamePath="/game-old" />} />
@@ -50,12 +45,8 @@ function App() {
           <Route path="/chat/:name" element={<CharacterChat />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/collections" element={<Collections />} />
-          <Route path="/collections/objects" element={<CollectedObjects />} />
-          <Route path="/plots" element={<Plots />} />
-          <Route path="/plots/characters" element={<CharacterBiographies />} />
-          <Route path="/plots/chapters" element={<ChapterSelection />} />
-          <Route path="/plots/chapters/text" element={<ChapterText />} />
-          <Route path="/plots/objects" element={<ObjectDescriptions />} />
+          <Route path="/plots/chapters/text" element={<Navigate to="/plots/chapters/first-investigation" replace />} />
+          <Route path="/plots/:category?/:entryId?" element={<Plots />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
