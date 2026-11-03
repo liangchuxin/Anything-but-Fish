@@ -23,15 +23,26 @@ Anything but Fish began as a [course proposal](https://github.com/liangchuxin/ag
 
 ## Setup and Testing
 
-Run `npm install` and `npm run dev` from `front-end`. Local configuration is in
-`front-end/.env` and `back-end/.env` (ignored by Git); copy the corresponding
-`.env.example` files on a new checkout. Run `npm run build` to verify the frontend.
+Requires Node.js 22.12 or newer and MongoDB Atlas. On a new checkout copy the
+`.env.example` files in `front-end` and `back-end` to `.env` (ignored by Git).
+In `back-end/.env`, configure the Atlas username/password and a random
+`JWT_SECRET` of at least 32 characters. See [backend setup](back-end/readme.txt)
+for secret generation and Atlas network access.
 
-The authentication frontend uses native HTML form controls and calls a cookie-based API.
-MongoDB configuration is backend-only. The backend and email delivery still need
-to be implemented; see [frontend setup](front-end/readme.txt) and
-[backend API contract](back-end/readme.txt). Password recovery uses reset links
-without a verification-code step.
+Run `npm install` and `npm run dev` in `back-end` to start the API on port 8000.
+In a second terminal run the same commands in `front-end`, then open
+`http://localhost:5173`. Vite forwards `/api` to the backend. Run `npm test` in
+`back-end` for Atlas integration tests in an isolated, automatically cleaned test
+database; run `npm run build` in `front-end` to verify its production build.
+
+Authentication stores accounts and salted password hashes in MongoDB, with JWTs
+in HttpOnly cookies and revocable sessions. The frontend uses native HTML forms
+and fetch; database credentials stay on the backend. Password recovery is currently
+unavailable; the application has no outgoing email integration or verification-code
+step. See [frontend setup](front-end/readme.txt)
+and [backend API contract](back-end/readme.txt). Game persistence is still planned.
+The current Render configuration hosts only the static frontend; production also
+needs a backend service and API routing.
 
 
 ## Sprint 1 Plans
@@ -42,10 +53,10 @@ without a verification-code step.
 |---|---|---|
 | Frontend | React + Vite | Build interactive game pages |
 | Styling | CSS | Design responsive mobile interfaces |
-| Backend | Python + FastAPI | Handle API requests and game logic |
+| Backend | Node.js + Express | Handle API requests and game logic |
 | Database | MongoDB Atlas | Store user data and game progress |
-| Database Driver | PyMongo | Connect Python to MongoDB |
-| Authentication | Session / JWT | User login and registration |
+| Database Driver | Mongoose | Validate models and connect to MongoDB |
+| Authentication | JWT in HttpOnly cookies + MongoDB sessions | User login and registration |
 | API | REST API + Fetch | Connect frontend and backend |
 | Version Control | Git + GitHub | Team collaboration |
 
@@ -58,7 +69,7 @@ without a verification-code step.
 - Implement basic navigation and user interactions.
 
 ### Backend
-- Set up the Python FastAPI server.
+- Set up the Node.js Express server.
 - Implement user registration and login.
 - Create APIs for fishing and retrieving anomalous objects.
 - Implement investigation choices and game logic.

@@ -9,16 +9,23 @@ Build:
 Register, Login, PasswordRecovery, and ResetPassword share AuthPage.jsx/CSS.
 The template assembles the original signup scenery and each page's label/stamp
 artwork, with transparent native inputs aligned to the handwritten lines.
-Login has email/password; recovery has the supplied title and one email field;
+Login has email/password; recovery has the supplied title and an unavailable notice;
 register retains three fields. Each stamp shows only its red text until hover,
 focus, or press reveals the frame. Recovery reuses the register frame.
 Footer links connect Login, Sign Up, Forgot password, and Home without moving
-the form. Native validation, loading states, and server errors remain in place.
-Register submits to /api/auth/register and opens /account-created only after
-success; leaving the page cancels its pending request. Login keeps its existing
-destination handling and accepts any nonempty password. Recovery sends email
-to /api/auth/forgot-password; its success message appears only after the response.
-The emailed /reset-password?token=... page still requires two matching passwords
+the form. Feedback and navigation share a bottom stack with safe-area insets and
+16px side margins. Links are centered, wrap within the visible artwork width, and
+use a 12-16px font. Register's "Already have an account? Login" occupies its own
+row. Wrapping navigation pushes feedback up instead of overlapping it.
+Native validation, loading states, and server errors remain in place.
+Register submits to /api/auth/register and stays on the illustrated form after
+success, clears the fields, and shows "Account created. Log in to continue."
+using the existing styled feedback panel. The Login footer link remains available;
+editing the form dismisses the success message. The old /account-created route
+redirects to /register. Leaving the page cancels its pending request. Login keeps its existing
+destination handling and accepts any nonempty password. Recovery has no send form
+or outgoing requests. The /reset-password?token=... page for previously issued
+links still requires two matching passwords
 of 8–128 characters and a token, then opens /reset-confirmation after success.
 Original layers are in src/assets/signup; new title/stamps are in src/assets/auth.
 Every PNG keeps its original 1500 x 3249 canvas; CSS clips stray export dots below
@@ -47,17 +54,29 @@ The canvas follows Register's CSS sizing; the menu shifts up on short screens
 to keep all buttons reachable. Signed-in users retain the Log Out control.
 Auth pages still call the backend API; /api/auth/me checks for an existing session
 on refresh. Credentials are not persisted in browser storage.
-Password recovery uses an emailed reset link; there is no verification-code step.
+Password recovery is currently unavailable; there is no verification-code step.
 
 VITE_API_BASE_URL is public configuration and defaults to /api.
 API_PROXY_TARGET defaults to http://127.0.0.1:8000 for the development proxy.
 Restart Vite after changing .env. In production configure a reverse proxy for
 /api, or set VITE_API_BASE_URL and configure backend CORS/cookies appropriately.
 Never place MongoDB credentials or other secrets in VITE_* variables.
+MONGODB_URI and MONGODB_DB_NAME mirror the Atlas setup in ../back-end/.env.example
+for reference. They have no VITE_ prefix and are not exposed to browser code or
+used by the frontend. Keep the real database password in ../back-end/.env;
+the frontend continues calling the HTTP API, not MongoDB directly.
 
-The backend is not implemented yet. Auth requests will show an error until the
-backend endpoints documented in ../back-end/readme.txt are available. Account
-creation and reset confirmation are reached after successful API responses.
+Run npm install and npm run dev in ../back-end to start the Express/Mongoose
+auth API on port 8000. Configure its private MongoDB URI and JWT_SECRET first;
+see ../back-end/readme.txt. Open the frontend at http://localhost:5173 to match
+the default FRONTEND_ORIGIN. Registration stores the account and a salted password
+hash in MongoDB. Login sets an HttpOnly JWT cookie, /me restores the account on
+refresh, and logout revokes the session. Successful login cancels any pending
+initial /me request so an older response cannot overwrite the signed-in account.
+Password reset also clears the frontend account state after server-side session
+revocation. Recovery displays an unavailable notice without generating reset links.
+The account-created message
+and reset confirmation appear only after successful API responses.
 The story reader at /game loads src/content/story/ancient-gold-coin.json.
 The draft contains 19 pages: 14 dialogue pages and 5 archive pages.
 See src/content/story/README.md for the JSON format, block types, and artwork paths.

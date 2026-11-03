@@ -1,0 +1,35 @@
+{
+  "name": "anything-but-fish-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "c8 --all --include='src/**/*.js' --exclude='src/server.js' --check-coverage --lines=80 --functions=80 --branches=70 mocha --timeout 60000 'test/**/*.test.js'"
+  },
+  "dependencies": {
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.6",
+    "dotenv": "18.0.9",
+    "express": "5.3.0",
+    "express-rate-limit": "8.7.3",
+    "express-validator": "7.3.2",
+    "helmet": "8.3.0",
+    "jsonwebtoken": "9.0.3",
+    "mongoose": "9.11.4"
+  },
+  "overrides": {
+    "glob": "14.0.2",
+    "minimatch": "11.0.1"
+  },
+  "devDependencies": {
+    "c8": "12.0.0",
+    "chai": "6.3.0",
+    "mocha": "12.0.3",
+    "supertest": "7.3.1"
+  }
+}
