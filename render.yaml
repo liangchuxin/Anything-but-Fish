@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: anything-but-fish-personal
+    runtime: static
+    repo: https://github.com/liangchuxin/Anything-but-Fish
+    branch: main
+    buildCommand: cd front-end && npm install && npm run build
+    staticPublishPath: front-end/dist
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.3
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
