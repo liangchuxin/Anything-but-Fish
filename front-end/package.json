@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:demo": "vite build --mode demo",
+    "preview": "vite preview",
+    "test:api": "node --test test/*.test.js"
   },
   "dependencies": {
     "react": "19.2.4",
@@ -15,6 +17,12 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "6.0.1",
+    "msw": "3.0.4",
     "vite": "8.0.3"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }

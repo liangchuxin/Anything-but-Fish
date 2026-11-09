@@ -1,4 +1,16 @@
-Backend setup (Node.js + Express + Mongoose)
+Backend authentication service (Node.js + Express + Mongoose)
+
+Game previews use browser MSW in front-end/src/mocks. Start npm run dev in
+front-end; no separate mock server or MongoDB is needed for those screens.
+Six game GET endpoints plus settings and save/load writes are mocked. Auth
+requests still reach this service, and real registration/login require the setup
+below. All visitors start with the same demo profile, unrelated to authenticated
+player data. Mock settings and saves stay in memory for the current browser page
+lifecycle and reset on refresh; no game data is written to MongoDB.
+See ../front-end/src/mocks/README.md for game response shapes and scenarios.
+Game API and MSW tests run with npm run test:api from front-end.
+
+Authentication setup
 
 Requires Node.js 22.12 or newer and MongoDB Atlas (transactions supported).
 Run from back-end on a new checkout:
@@ -21,7 +33,7 @@ Keep actual credentials in back-end/.env. Frontend environment files contain
 only Atlas placeholders and do not establish a database connection.
 
 Start the frontend separately with npm run dev in front-end and open
-http://localhost:5173. Vite proxies /api to http://127.0.0.1:8000. Keep
+http://localhost:5173. Vite proxies /api/auth to http://127.0.0.1:8000. Keep
 FRONTEND_ORIGIN equal to the browser's exact origin, including its port.
 
 Frontend authentication API contract (all paths start with /api/auth):
@@ -66,7 +78,7 @@ the unexpired token, changes the password hash, increments authVersion, and
 deletes all sessions in a MongoDB transaction. Token expiry is checked on requests
 even before TTL cleanup runs.
 
-Tests:
+Auth integration tests:
   npm test
 Mocha/Chai/Supertest integration tests use TEST_MONGODB_URI, falling back to .env's
 MONGODB_URI. They create a random abf_auth_test_* database on Atlas and delete only
@@ -83,15 +95,32 @@ Current sources:
   id, title, a characters map, and 19 pages (14 dialogue and 5 archive pages).
   Dialogue pages contain id/template/background/speaker/content; archive pages
   contain id/template/blocks. Game.jsx currently renders only the dialogue pages.
-- src/content/plots.js contains preview categories with entries shaped as
-  { id, title, collected, total, description[] }. Counts are hard-coded, not
-  player progress, and descriptions are visible without unlock checks.
-- Collections.jsx embeds three display records { id, image, title, description }.
-  IDs such as photo-1 are artwork/UI identifiers, not canonical item IDs.
-- ChooseCharacter.jsx defines cislo independently of the chapter's speaker keys
-  (a, b, miner, etc.). These records do not yet share a character catalog.
-- SaveLoad, Inventory, and Settings are navigation placeholders. CharacterChat
-  has a draft textarea but no submission, message history, or memory persistence.
+- Plots, Collections, ChooseCharacter, Inventory, Settings, and SaveLoad fetch
+  /api/game/plots, collections, characters, inventory, settings, and saves.
+  MSW handles these six GET requests plus PATCH settings, PUT saves/:id, and
+  POST saves/:id/load in development and the explicit demo build. These are
+  browser mocks, not implemented routes in this Express service. Fixtures live
+  in front-end/src/mocks/fixtures, separate from the page components.
+  Plots receives { id, title, collected, total, description[] } entries; these
+  counts describe the fixed demo player, not the authenticated account.
+- Collections receives { id, title, description }; artwork mappings remain in
+  the frontend. IDs such as photo-1 are still artwork/UI identifiers, not
+  canonical inventory item IDs.
+- The mock character catalog uses cislo independently of the chapter's speaker
+  keys (a, b, miner, etc.). These references still need reconciliation before
+  implementing shared game persistence.
+- Inventory browses mock items with counts and descriptions; collecting and
+  submitting items are not implemented. Game's backpack and Chat's backpack
+  open this overlay. The old /inventory route redirects to /game/1/inventory.
+- Game's gear opens Settings for soundVolume, ambientVolume, and language
+  (en or zh). Apply settings writes to mock memory and reopening reads it back.
+  Language changes only Settings labels; audio playback and global story
+  translation are not connected.
+- Game's fishhook opens Save/Load with three slots. It saves chapterTitle, page,
+  and savedAt, confirms replacement, and loads the saved numbered page. Settings
+  and saves reset on browser refresh; neither is tied to a real account or DB.
+- CharacterChat has a draft textarea but no submission, message history, or
+  memory persistence. p5 interactions are not implemented.
 - Auth forms call the implemented /api/auth/* routes and expect
   { user: { id, email } } from login and /me.
 
@@ -118,14 +147,18 @@ Proposed game data, based on the current screens (not implemented):
 
 Content catalogs (chapters, characters, items, archive entries) need canonical IDs
 and explicit references between them. Artwork paths remain frontend assets.
-Static content can remain versioned JSON initially; dynamic player data belongs
-in MongoDB. The API must return only unlocked archive fragments, derive userId
-from authentication, and serialize MongoDB _id as the frontend's string id.
+The original story JSON and artwork remain static content released with the app;
+dynamic player data belongs in MongoDB. A future real game API must return only
+unlocked archive fragments, derive userId from authentication, and serialize
+MongoDB _id as the frontend's string id.
 
 Auth uses Express, Mongoose, and JWT as required by instructions-2-back-end.md and
-instructions-3-database.md. Next work: chapter progress/save-load, inventory and
-unlocks, then chat persistence. Existing game routes remain open for frontend
+instructions-3-database.md. Next backend work: persistent chapter progress and
+save/load, inventory and unlocks, then chat persistence. Existing game routes remain open for frontend
 development; future private game APIs must validate authentication server-side.
-render.yaml currently deploys only a static frontend. Production also needs this
-backend service plus /api routing or an explicit VITE_API_BASE_URL and matching
-FRONTEND_ORIGIN/cookie configuration. The Vite proxy runs only in development.
+render.yaml builds a static course demo with npm run build:demo in front-end.
+That build includes MSW game fixtures; it does not mock authentication. Real auth
+requires this service plus /api routing or an explicit VITE_API_BASE_URL with
+matching FRONTEND_ORIGIN/cookie configuration. The normal npm run build disables
+MSW by default and also needs real game endpoints. Vite's development proxy is
+not part of either static deployment.

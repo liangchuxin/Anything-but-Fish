@@ -73,4 +73,6 @@ Put artwork under `front-end/public`. For example, a file at `front-end/public/s
 
 Keep `src` or `portrait` as `null` while artwork is missing. Background and archive image placeholders display `description`; when an image is available, that description becomes its alternative text. The current descriptions come from the script's visual directions and are separate from spoken dialogue and narration.
 
-The URL identifies the open page, but progress saving is not implemented. Inventory is still a placeholder, and p5 interactions are not implemented. Adding another JSON file does not automatically register a chapter: update the chapter import or selection logic in Game and connect the chapter selection screen when adding more chapters.
+The URL identifies the open page. The fishhook opens Save/Load, which can save the current chapter title and numbered page into a mock slot and return to that page on load. These demo saves last only for the current browser page lifecycle and reset on refresh; real account progress and database persistence are not implemented. Future persistent saves should use stable chapter/page IDs instead of numbered URLs.
+
+The backpack opens a browse-only Inventory overlay; collecting or submitting items and p5 interactions are not implemented. The gear opens Settings, whose language choice changes only its own labels, not this authored story. Adding another JSON file does not automatically register a chapter: update the chapter import or selection logic in Game and connect the chapter selection screen when adding more chapters.

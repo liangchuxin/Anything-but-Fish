@@ -24,17 +24,41 @@ Anything but Fish began as a [course proposal](https://github.com/liangchuxin/ag
 
 ## Setup and Testing
 
-Requires Node.js 22.12 or newer and MongoDB Atlas. On a new checkout copy the
-`.env.example` files in `front-end` and `back-end` to `.env` (ignored by Git).
-In `back-end/.env`, configure the Atlas username/password and a random
-`JWT_SECRET` of at least 32 characters. See [backend setup](back-end/readme.txt)
-for secret generation and Atlas network access.
+Requires Node.js 22.12 or newer. Start the frontend from the project root:
 
-Run `npm install` and `npm run dev` in `back-end` to start the API on port 8000.
-In a second terminal run the same commands in `front-end`, then open
-`http://localhost:5173`. Vite forwards `/api` to the backend. Run `npm test` in
-`back-end` for Atlas integration tests in an isolated, automatically cleaned test
-database; run `npm run build` in `front-end` to verify its production build.
+```bash
+cd front-end
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` and choose **Continue without logging in**.
+MSW starts in the browser and mocks six game GET endpoints plus settings and
+save/load writes. No separate mock server or MongoDB is needed. The pages fetch
+their records and show loading, error/retry, and empty states. Every visitor
+starts with the same fixed demo profile, unrelated to login. Settings and saves
+stay in memory for the current browser page lifecycle and reset on refresh;
+they are not stored in a database. The original story JSON and artwork remain
+static content released with the app.
+
+In Game, the backpack opens Inventory, the gear opens Settings, and the fishhook
+opens Save/Load. Inventory supports browsing only; item collection/submission,
+chat submission, and p5 interactions are still planned. Settings saves volume
+values and an English/Chinese choice, but audio playback and story translation
+are not connected yet. Only the settings panel's labels change language.
+
+To use real registration and login, configure `back-end/.env` from its example
+with MongoDB Atlas credentials and a `JWT_SECRET`, then run `npm run dev` in
+`back-end` in a second terminal. MSW does not mock authentication; Vite forwards
+those `/api` requests to port 8000. See [backend setup](back-end/readme.txt).
+
+Run `npm run test:api` in `front-end` for game response and MSW handler tests
+without running services. `npm run build` creates a normal build with mocks off
+by default; `npm run build:demo` includes browser mocks for the course demo.
+`VITE_ENABLE_MOCKS=false` forces mocks off, and `true` explicitly enables them.
+Use `VITE_MOCK_SCENARIO=demo|empty|error` and `VITE_MOCK_DELAY_MS` to check page
+states; see [mock configuration](front-end/src/mocks/README.md). Auth integration
+tests remain `npm test` in `back-end` and use an isolated Atlas test database.
 
 Authentication stores accounts and salted password hashes in MongoDB, with JWTs
 in HttpOnly cookies and revocable sessions. The frontend uses native HTML forms
@@ -42,8 +66,11 @@ and fetch; database credentials stay on the backend. Password recovery is curren
 unavailable; the application has no outgoing email integration or verification-code
 step. See [frontend setup](front-end/readme.txt)
 and [backend API contract](back-end/readme.txt). Game persistence is still planned.
-The current Render configuration hosts only the static frontend; production also
-needs a backend service and API routing.
+The Render configuration uses `build:demo` to host a static course preview with
+MSW game data. Real authentication still needs a separately deployed backend and
+API routing. A normal build with mocks disabled needs real game endpoints too;
+missing endpoints show errors rather than fallback data. Vite's proxy runs only
+in development.
 
 
 ## Sprint 1 Plans

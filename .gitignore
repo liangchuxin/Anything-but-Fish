@@ -127,3 +127,9 @@ typings/
 ## Jekyll artifacts
 **/.jekyll-cache
 **/_site/
+
+# Local development configuration
+AGENTS.md
+AGENTS.override.md
+.agents/
+.codex/

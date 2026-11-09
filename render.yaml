@@ -4,7 +4,7 @@ services:
     runtime: static
     repo: https://github.com/liangchuxin/Anything-but-Fish
     branch: main
-    buildCommand: cd front-end && npm install && npm run build
+    buildCommand: cd front-end && npm install && npm run build:demo
     staticPublishPath: front-end/dist
     envVars:
       - key: NODE_VERSION

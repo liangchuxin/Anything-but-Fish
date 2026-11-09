@@ -1,10 +1,44 @@
+Frontend preview (Node.js 22.12 or newer)
+
 Run from the front-end directory:
   npm install
-  cp .env.example .env
   npm run dev
 
-Build:
+Open http://localhost:5173 and choose Continue without logging in.
+MSW starts in the browser by default; game previews need no separate mock server
+or MongoDB. Defaults work without a frontend .env; copy .env.example only when
+you need to override them.
+
+Normal build (mocks disabled by default):
   npm run build
+
+Static course demo build (browser mocks enabled):
+  npm run build:demo
+
+API response and MSW handler checks (no services required):
+  npm run test:api
+
+Game data preview:
+Plots, Collections, the character chooser, Inventory, Settings, and SaveLoad
+fetch six GET endpoints under /api/game: plots, collections, characters,
+inventory, settings, and saves. MSW also handles PATCH settings, PUT saves/:id,
+and POST saves/:id/load. Authentication and other requests pass through normally.
+The pages display loading, error/retry, and empty states instead of embedding fallback data.
+Fixtures live in src/mocks/fixtures, with content catalogs and preview progress
+kept separate. All visitors start with the same fixed demo profile; login does
+not change it. Mock settings and saves stay in memory for the current browser
+page lifecycle and reset on refresh. They are not real account or database data.
+
+To inspect other states, restart Vite from front-end, for example:
+  VITE_MOCK_SCENARIO=empty npm run dev
+  VITE_MOCK_SCENARIO=error npm run dev
+  VITE_MOCK_SCENARIO=demo VITE_MOCK_DELAY_MS=1000 npm run dev
+The default scenario is demo and the default delay is 250 ms.
+VITE_ENABLE_MOCKS=false forces mocks off; true explicitly enables them.
+These settings are read when Vite starts or builds, not when a deployed page
+loads. See src/mocks/README.md for the response contract and demo behavior.
+Inventory supports browsing only; item collection/submission, chat submission,
+and p5 interactions are not implemented.
 
 Register, Login, PasswordRecovery, and ResetPassword share AuthPage.jsx/CSS.
 The template assembles the original signup scenery and each page's label/stamp
@@ -57,17 +91,25 @@ on refresh. Credentials are not persisted in browser storage.
 Password recovery is currently unavailable; there is no verification-code step.
 
 VITE_API_BASE_URL is public configuration and defaults to /api.
-API_PROXY_TARGET defaults to http://127.0.0.1:8000 for the development proxy.
-Restart Vite after changing .env. In production configure a reverse proxy for
-/api, or set VITE_API_BASE_URL and configure backend CORS/cookies appropriately.
+Keep this relative default for local preview. Vite forwards unmocked /api
+requests to API_PROXY_TARGET (default http://127.0.0.1:8000). An absolute API URL
+bypasses that development proxy; MSW still matches its game endpoints
+against the configured base URL. Restart Vite after changing .env.
+The Render configuration uses build:demo so the static course preview can serve
+game data through browser MSW. Authentication still needs a real backend and
+routing. For a normal build with mocks disabled, both game and auth endpoints
+must be available. Configure same-origin /api routing or VITE_API_BASE_URL with
+matching backend CORS/cookies. Vite's proxy runs only in development; unavailable
+endpoints show errors rather than enabling mock data as a fallback.
 Never place MongoDB credentials or other secrets in VITE_* variables.
 MONGODB_URI and MONGODB_DB_NAME mirror the Atlas setup in ../back-end/.env.example
 for reference. They have no VITE_ prefix and are not exposed to browser code or
 used by the frontend. Keep the real database password in ../back-end/.env;
 the frontend continues calling the HTTP API, not MongoDB directly.
 
-Run npm install and npm run dev in ../back-end to start the Express/Mongoose
-auth API on port 8000. Configure its private MongoDB URI and JWT_SECRET first;
+For real authentication, use a second terminal to run npm run dev in ../back-end
+alongside Vite. The Express/Mongoose auth API uses port 8000.
+Configure its private MongoDB URI and JWT_SECRET first;
 see ../back-end/readme.txt. Open the frontend at http://localhost:5173 to match
 the default FRONTEND_ORIGIN. Registration stores the account and a salted password
 hash in MongoDB. Login sets an HttpOnly JWT cookie, /me restores the account on
@@ -78,11 +120,14 @@ revocation. Recovery displays an unavailable notice without generating reset lin
 The account-created message
 and reset confirmation appear only after successful API responses.
 The story reader at /game loads src/content/story/ancient-gold-coin.json.
+This authored story and the original artwork are static content released with
+the app, separate from player-specific progress and the mock API records.
 The draft contains 19 pages: 14 dialogue pages and 5 archive pages.
 See src/content/story/README.md for the JSON format, block types, and artwork paths.
 The current game uses /game/1 through /game/14, numbered from the first dialogue.
 /game and invalid page numbers redirect to /game/1. Refresh and browser Back/Forward
-follow the page in the URL; saving progress is not implemented yet.
+follow the page in the URL. Save/Load can save and reopen that numbered page
+within the current mock page lifecycle; refresh resets those demo saves.
 Game.jsx assembles the supplied story artwork with
 13 original PNG layers in src/assets/game, each at 1760 x 3808.
 It reads only chapter pages with a speaker and displays their dialogue without
@@ -102,17 +147,28 @@ Navigation is disabled during loading; failed loads retain the current page and
 allow retrying.
 Game.css uses the same CSS-only sizing as Register: a 394px base width,
 expansion for taller screens, black sidebars, and centered cropping on short screens.
-The upper-left home icon returns to /starting; inventory and settings icons
-are currently placeholders. The former /story-preview route has been removed.
+The upper-left home icon returns to /starting. The backpack opens Inventory,
+the gear opens Settings, and the fishhook opens Save/Load as overlays on the
+current story page, at /game/:page/inventory, /game/:page/settings, or
+/game/:page/save-load.
+Closing an overlay returns to the same story page. The former /story-preview
+route has been removed.
 The original 19-page reader is retained in GameOld.jsx and GameOld.css, with its
 dialogue/archive components and chapter data unchanged. To view it again, uncomment
 the GameOld import and /game-old routes in App.jsx. It retains ID-based page URLs
 such as /game-old/pond and /game-old/pond-b-nervous.
-The shared /inventory page returns to the screen that opened it. Inventory is
-currently a placeholder; collecting and storing items is not implemented yet.
+Inventory shows mock item counts and descriptions; it does not collect or
+submit items. The old /inventory URL redirects to /game/1/inventory.
+Settings edits soundVolume, ambientVolume, and language (en or zh). Apply settings
+saves these values through the mock API, and reopening the panel reads them back.
+Language changes only the Settings labels; audio tracks and global story
+translation are not connected. Save/Load shares one panel with two mode buttons
+and three slots. Saving an occupied slot requires confirmation; loading an empty
+slot is disabled. Saving stores chapterTitle, page, and savedAt in mock memory.
+Both panels reset to their demo defaults when the browser page is refreshed.
 The /chat route opens the character chooser directly, without the old NPCChat
-intermediate page. The illustrated chooser displays Cislobog Raskolnikov;
-selecting his button opens /chat/cislo via /chat/:name. During frontend
+intermediate page. The chooser displays the characters returned by the mock API;
+the demo's cislo button opens /chat/cislo via /chat/:name. During frontend
 development, any name uses the current cislo artwork without redirecting.
 The former /npc-chat, /choose-character, and /character-chat
 routes have been removed. The chooser contains character-name buttons and Back;
@@ -127,8 +183,8 @@ The transparent native textarea aligns to the frame and uses the shared local
 Chakra Petch font. It supports drafting text only; chat submission is not implemented.
 The small cat is an absolutely positioned, disabled emoji control within the input
 frame and may overlap the text. Symmetric horizontal padding and vertical padding
-keep text away from the frame's decorative corners. The arrow returns to /chat;
-Inventory returns to the character chat that opened it.
+keep text away from the frame's decorative corners. The arrow returns to /chat.
+The backpack opens an Inventory overlay at /chat/:name/inventory; closing it
+returns to the character chat that opened it.
 Canvas scaling and control positioning use CSS only, with short-screen
 offsets to keep the input and navigation visible.
-The other game screens are navigation placeholders.
