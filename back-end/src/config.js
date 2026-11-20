@@ -29,14 +29,17 @@ export function readConfig(env = process.env) {
   if (!env.JWT_SECRET || env.JWT_SECRET.length < 32 || /^(replace|change|your)[_-]/i.test(env.JWT_SECRET)) {
     throw new Error("Set JWT_SECRET to a random secret of at least 32 characters.");
   }
-  const frontend = httpUrl(env.FRONTEND_ORIGIN || "http://localhost:5173", "FRONTEND_ORIGIN");
-  if (frontend.href !== `${frontend.origin}/`) throw new Error("FRONTEND_ORIGIN must contain only an origin.");
+  const frontends = (env.FRONTEND_ORIGIN || "http://localhost:5173").split(",").map((value) => {
+    const url = httpUrl(value.trim(), "FRONTEND_ORIGIN");
+    if (url.href !== `${url.origin}/`) throw new Error("FRONTEND_ORIGIN must contain only origins separated by commas.");
+    return url;
+  });
   const secureCookies = boolean(env.AUTH_COOKIE_SECURE, env.NODE_ENV === "production", "AUTH_COOKIE_SECURE");
   const sameSite = env.AUTH_COOKIE_SAME_SITE || "lax";
   if (!["lax", "strict", "none"].includes(sameSite) || (sameSite === "none" && !secureCookies)) {
     throw new Error("AUTH_COOKIE_SAME_SITE must be lax, strict, or none; none requires secure cookies.");
   }
-  if (env.NODE_ENV === "production" && (!secureCookies || frontend.protocol !== "https:")) {
+  if (env.NODE_ENV === "production" && (!secureCookies || frontends.some((url) => url.protocol !== "https:"))) {
     throw new Error("Production requires secure cookies and an HTTPS frontend URL.");
   }
   const cookieName = env.AUTH_SESSION_COOKIE || "abf_session";
@@ -45,7 +48,8 @@ export function readConfig(env = process.env) {
   if (!/^[A-Za-z0-9_-]+$/.test(dbName)) throw new Error("MONGODB_DB_NAME contains unsupported characters.");
   return {
     mongodbUri, dbName, jwtSecret: env.JWT_SECRET, cookieName, secureCookies, sameSite,
-    frontendOrigin: frontend.origin,
+    frontendOrigin: frontends[0].origin,
+    frontendOrigins: frontends.map((url) => url.origin),
     port: integer(env.PORT, 8000, "PORT", 1, 65535),
     sessionTtlSeconds: integer(env.AUTH_SESSION_TTL_SECONDS, 604800, "AUTH_SESSION_TTL_SECONDS", 60, 2592000),
     trustProxy: integer(env.TRUST_PROXY, 0, "TRUST_PROXY", 0, 5),

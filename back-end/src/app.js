@@ -26,14 +26,15 @@ function validate(req, _res, next) {
 
 export function createApp({ config, models, logger = console }) {
   const { User, Session, PasswordResetToken } = models;
+  const frontendOrigins = config.frontendOrigins ?? [config.frontendOrigin];
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", config.trustProxy);
   app.use(helmet());
-  app.use(cors({ origin: config.frontendOrigin, credentials: true, methods: ["GET", "POST"], allowedHeaders: ["Content-Type", "Accept"] }));
+  app.use(cors({ origin: frontendOrigins, credentials: true, methods: ["GET", "POST"], allowedHeaders: ["Content-Type", "Accept"] }));
   app.use("/api/auth", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   app.use("/api/auth", (req, _res, next) => {
-    if (req.get("origin") && req.get("origin") !== config.frontendOrigin) {
+    if (req.get("origin") && !frontendOrigins.includes(req.get("origin"))) {
       return next(new HttpError(403, "This request origin is not allowed."));
     }
     if (req.method === "POST" && !req.is("application/json")) {
