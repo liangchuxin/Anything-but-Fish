@@ -11,8 +11,11 @@ import {
   getChatHistory,
   sendChatMessage,
 } from "../lib/chat-api";
+import { useAuth } from "../auth/AuthContext";
 import environment from "../assets/chat/environment.png";
 import cislo from "../assets/chat/cislo.png";
+import ona from "../assets/chat/ona-portrait.png";
+import ivan from "../assets/chat/ivan-portrait.png";
 import documentBackground from "../assets/chat/document-background.png";
 import inputFrame from "../assets/chat/input-frame.png";
 import twoCats from "../assets/chat/two-cats.png";
@@ -27,7 +30,19 @@ const CHARACTER_NAMES = {
   cislo: "Cislobog Raskolnikova",
 };
 
+const CHARACTER_PORTRAITS = {
+  cislo: { src: cislo, width: 1500, height: 3249 },
+  ona: { src: ona, width: 1500, height: 2620 },
+  ivan: { src: ivan, width: 1500, height: 2799 },
+};
+
 export default function CharacterChat() {
+  const { user, loading } = useAuth();
+  const { name } = useParams();
+  return <CharacterConversation key={`${user?.id ?? "guest"}:${name}`} checkingSession={loading} />;
+}
+
+function CharacterConversation({ checkingSession }) {
   const { name } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -38,10 +53,16 @@ export default function CharacterChat() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [errorStatus, setErrorStatus] = useState(null);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   const conversationRef = useRef(null);
   const sendControllerRef = useRef(null);
+  const portraitButtonRef = useRef(null);
   const displayName = CHARACTER_NAMES[name] || name || "Investigator";
+  const portrait = Object.hasOwn(CHARACTER_PORTRAITS, name) ? CHARACTER_PORTRAITS[name] : null;
+  const waiting = loading || checkingSession;
+  const accessDenied = [401, 403, 404].includes(errorStatus);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,6 +71,7 @@ export default function CharacterChat() {
     setMessages([]);
     setDraft("");
     setError("");
+    setErrorStatus(null);
     setLoading(true);
 
     getChatHistory(name, mode, { signal: controller.signal })
@@ -59,6 +81,7 @@ export default function CharacterChat() {
       .catch((requestError) => {
         if (active && requestError.name !== "AbortError") {
           setError(requestError.message);
+          setErrorStatus(requestError.status ?? null);
         }
       })
       .finally(() => {
@@ -78,7 +101,12 @@ export default function CharacterChat() {
     if (conversation) {
       conversation.scrollTop = conversation.scrollHeight;
     }
-  }, [messages, sending]);
+  }, [messages, sending, panelOpen]);
+
+  function hideConversation() {
+    setPanelOpen(false);
+    portraitButtonRef.current?.focus({ preventScroll: true });
+  }
 
   function closeModal() {
     if (location.state?.overlay) {
@@ -92,12 +120,14 @@ export default function CharacterChat() {
     event.preventDefault();
 
     const content = draft.trim();
-    if (!content || loading || sending) return;
+    if (!content || waiting || sending || accessDenied) return;
 
+    setPanelOpen(true);
     const controller = new AbortController();
     sendControllerRef.current = controller;
     setSending(true);
     setError("");
+    setErrorStatus(null);
 
     try {
       const reply = await sendChatMessage(name, mode, content, {
@@ -115,6 +145,7 @@ export default function CharacterChat() {
     } catch (requestError) {
       if (!controller.signal.aborted) {
         setError(requestError.message);
+        setErrorStatus(requestError.status ?? null);
       }
     } finally {
       if (sendControllerRef.current === controller) {
@@ -139,24 +170,68 @@ export default function CharacterChat() {
     <main className="character-chat" aria-label={`Chat with ${displayName}`}>
       <div className="character-chat__canvas">
         <div className="character-chat__artwork" aria-hidden="true">
-          {[
-            environment,
-            ...(name === "cislo" ? [cislo] : []),
-            documentBackground,
-          ].map((src) => (
-            <img
-              className="character-chat__layer"
-              key={src}
-              src={src}
-              alt=""
-              width="1500"
-              height="3249"
-              draggable={false}
-            />
-          ))}
+          <img
+            className="character-chat__layer"
+            src={environment}
+            alt=""
+            width="1500"
+            height="3249"
+            draggable={false}
+          />
+          {portrait && (
+            <div className="character-chat__portrait-crop">
+              <img
+                className={`character-chat__portrait character-chat__portrait--${name}`}
+                src={portrait.src}
+                alt=""
+                width={portrait.width}
+                height={portrait.height}
+                draggable={false}
+              />
+            </div>
+          )}
+          <img
+            className="character-chat__layer"
+            src={documentBackground}
+            alt=""
+            width="1500"
+            height="3249"
+            draggable={false}
+          />
         </div>
 
-        <section className="character-chat__panel" aria-label="Conversation">
+        <button
+          ref={portraitButtonRef}
+          className={portrait ? `character-chat__portrait-button character-chat__portrait-button--${name}` : "character-chat__open-conversation"}
+          type="button"
+          aria-label={`Open conversation with ${displayName}`}
+          aria-controls="character-conversation"
+          aria-expanded={panelOpen}
+          onClick={() => setPanelOpen(true)}
+        >
+          {!portrait && "Open conversation"}
+        </button>
+
+        <section
+          id="character-conversation"
+          className="character-chat__panel"
+          aria-label="Conversation"
+          hidden={!panelOpen}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              hideConversation();
+            }
+          }}
+        >
+          <button
+            className="character-chat__close"
+            type="button"
+            aria-label="Hide conversation"
+            onClick={hideConversation}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
           <h1 className="character-chat__name">{displayName}</h1>
 
           <div
@@ -191,13 +266,13 @@ export default function CharacterChat() {
             aria-label={`${displayName} conversation`}
             aria-live="polite"
           >
-            {loading && (
+            {waiting && (
               <p className="character-chat__status">
                 Loading conversation...
               </p>
             )}
 
-            {!loading && messages.length === 0 && !error && (
+            {!waiting && messages.length === 0 && !error && (
               <p className="character-chat__status">
                 No messages yet. Say hello.
               </p>
@@ -222,9 +297,12 @@ export default function CharacterChat() {
             )}
           </div>
 
-          {error && (
+          {!waiting && error && (
             <p className="character-chat__error" role="alert">
               {error}
+              {errorStatus === 401 && (
+                <> <Link to="/login" state={{ from: location.pathname }}>Log in</Link></>
+              )}
             </p>
           )}
         </section>
@@ -246,13 +324,13 @@ export default function CharacterChat() {
             maxLength={2000}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleMessageKeyDown}
-            disabled={loading || sending}
+            disabled={waiting || sending || accessDenied}
             placeholder="Write a message..."
           />
           <button
             className="character-chat__send"
             type="submit"
-            disabled={loading || sending || !draft.trim()}
+            disabled={waiting || sending || accessDenied || !draft.trim()}
           >
             Send
           </button>

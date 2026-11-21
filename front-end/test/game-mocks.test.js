@@ -44,7 +44,8 @@ async function write(resource, method, body) {
   return { response, data: await response.json() };
 }
 
-test("demo serves the existing game contracts without unhandled requests", async () => {
+test("explicit standalone demo serves characters alongside the unfinished game contracts", async () => {
+  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, mockCharacters: true }));
   const plots = await get("plots");
   assert.equal(plots.response.status, 200);
   assert.deepEqual(plots.data.categories.map(({ id, title, entries }) => [id, title, entries.length]), [
@@ -69,7 +70,7 @@ test("demo serves the existing game contracts without unhandled requests", async
 
 test("responses derive visibility and counts from preview progress rather than content definitions", async () => {
   const profile = structuredClone(previewProfiles.empty);
-  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, profile }));
+  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, profile, mockCharacters: true }));
   profile.plotProgress.characters = { cislo: 1, kael: 2 };
   let plots = await get("plots");
   assert.deepEqual(plots.data.categories[0].entries.map(({ id, collected }) => [id, collected]), [["cislo", 1], ["kael", 2]]);
@@ -86,7 +87,7 @@ test("responses derive visibility and counts from preview progress rather than c
 });
 
 test("empty scenario retains all three categories with no unlocked content", async () => {
-  server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "empty", delayMs: 0 }));
+  server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "empty", delayMs: 0, mockCharacters: true }));
   assert.deepEqual((await get("plots")).data, { categories: [
     { id: "characters", title: "Characters", entries: [] },
     { id: "chapters", title: "Chapters", entries: [] },
@@ -101,7 +102,7 @@ test("empty scenario retains all three categories with no unlocked content", asy
 });
 
 test("error scenario returns JSON 503 responses for every mocked operation", async () => {
-  server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "error", delayMs: 0 }));
+  server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "error", delayMs: 0, mockCharacters: true }));
   for (const resource of ["plots", "characters", "inventory", "settings", "saves"]) {
     const { response, data } = await get(resource);
     assert.equal(response.status, 503);
@@ -127,6 +128,7 @@ test("implemented APIs, other origins, unknown paths, and unsupported methods re
       { method: "POST", url: `${baseUrl}/auth/register` },
       { method: "PATCH", url: `${baseUrl}/auth/settings` },
       { method: "GET", url: `${baseUrl}/game/collections` },
+      { method: "GET", url: `${baseUrl}/game/characters` },
       { method: "GET", url: `${baseUrl}/game/chat/cislo?mode=daily` },
       { method: "POST", url: `${baseUrl}/game/chat/cislo` },
       { method: "GET", url: `${baseUrl}/game/missing` },
@@ -232,7 +234,7 @@ test("invalid saves and unknown slots fail without overwriting progress", async 
 test("the configured response delay is applied", async () => {
   server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 40 }));
   const startedAt = performance.now();
-  await get("characters");
+  await get("inventory");
   assert.ok(performance.now() - startedAt >= 35);
 });
 
@@ -245,7 +247,7 @@ test("invalid scenario and delay settings fail before request interception start
 });
 
 test("a custom API base with a trailing slash is matched without broadening interception", async () => {
-  server.resetHandlers(...createGameHandlers({ baseUrl: "http://game.test/custom/api/", delayMs: 0 }));
+  server.resetHandlers(...createGameHandlers({ baseUrl: "http://game.test/custom/api/", delayMs: 0, mockCharacters: true }));
   const response = await fetch("http://game.test/custom/api/game/characters");
   assert.equal(response.status, 200);
   assert.equal((await response.json()).characters[0].name, "cislo");

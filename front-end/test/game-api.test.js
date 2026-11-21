@@ -6,7 +6,7 @@ afterEach(() => mock.restoreAll());
 
 test("game requests use the API and preserve the cookie and cancellation contract", async () => {
   const signal = new AbortController().signal;
-  const response = { characters: [{ name: "preview-character", displayName: "Preview character" }] };
+  const response = { characters: [{ name: "cislo", displayName: "Cislobog Raskolnikova", unlockedAt: "2026-11-20T12:00:00.000Z" }] };
   mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, "/api/game/characters");
     assert.equal(options.credentials, "include");
@@ -46,6 +46,19 @@ test("failed HTTP and network requests report failure instead of returning sampl
   await assert.rejects(gameRequest("collections"), /Unable to load/);
   globalThis.fetch.mock.mockImplementation(async () => { throw new TypeError("Failed to fetch"); });
   await assert.rejects(gameRequest("collections"), /Unable to load/);
+});
+
+test("account progress errors distinguish login, locked content, and unavailable progress", async () => {
+  const responses = [
+    [401, /Please log in/],
+    [403, /not been unlocked for your account/],
+    [503, /Character progress is temporarily unavailable/],
+  ];
+  mock.method(globalThis, "fetch", async () => Response.json({}, { status: 401 }));
+  for (const [status, message] of responses) {
+    globalThis.fetch.mock.mockImplementation(async () => Response.json({}, { status }));
+    await assert.rejects(gameRequest("characters"), (error) => error.status === status && message.test(error.message));
+  }
 });
 
 test("cancellation stays distinguishable from a server error", async () => {
