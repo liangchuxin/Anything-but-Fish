@@ -1,29 +1,31 @@
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash } from "node:crypto";
-import { promisify } from "node:util";
-import jwt from "jsonwebtoken";
+"use strict";
+
+const { randomBytes, scrypt: scryptCallback, timingSafeEqual, createHash } = require("node:crypto");
+const { promisify } = require("node:util");
+const jwt = require("jsonwebtoken");
 
 const scrypt = promisify(scryptCallback);
 const parameters = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 };
 // Missing accounts still run the same password derivation as existing accounts.
-export const dummyPasswordHash = `scrypt$${"00".repeat(16)}$${"00".repeat(64)}`;
+const dummyPasswordHash = `scrypt$${"00".repeat(16)}$${"00".repeat(64)}`;
 
-export async function hashPassword(password) {
+async function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
   const hash = await scrypt(password, salt, 64, parameters);
   return `scrypt$${salt}$${hash.toString("hex")}`;
 }
 
-export async function verifyPassword(password, storedHash) {
+async function verifyPassword(password, storedHash) {
   if (typeof storedHash !== "string" || !/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/.test(storedHash)) return false;
   const [, salt, expected] = storedHash.split("$");
   const actual = await scrypt(password, salt, 64, parameters);
   return timingSafeEqual(actual, Buffer.from(expected, "hex"));
 }
 
-export const randomToken = () => randomBytes(32).toString("hex");
-export const hashToken = (token) => createHash("sha256").update(token).digest("hex");
+const randomToken = () => randomBytes(32).toString("hex");
+const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 
-export function issueSession(user, config) {
+function issueSession(user, config) {
   const sessionId = randomToken();
   const token = jwt.sign({ v: user.authVersion }, config.jwtSecret, {
     algorithm: "HS256", subject: user.id, jwtid: sessionId,
@@ -34,7 +36,7 @@ export function issueSession(user, config) {
   return { token, tokenHash: hashToken(sessionId), expiresAt: new Date(exp * 1000) };
 }
 
-export function readSession(token, config) {
+function readSession(token, config) {
   if (typeof token !== "string" || token.length > 4096) return null;
   try {
     const claims = jwt.verify(token, config.jwtSecret, {
@@ -45,3 +47,5 @@ export function readSession(token, config) {
     return claims;
   } catch { return null; }
 }
+
+module.exports = { dummyPasswordHash, hashPassword, verifyPassword, randomToken, hashToken, issueSession, readSession };

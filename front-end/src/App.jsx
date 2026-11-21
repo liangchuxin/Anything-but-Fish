@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Welcome from "./components/Welcome";
 import Register from "./components/Register";
+import AccountCreated from "./components/AccountCreated";
 import Login from "./components/Login";
 import PasswordRecovery from "./components/PasswordRecovery";
 import { AuthProvider } from "./auth/AuthContext";
@@ -24,7 +25,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Welcome />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/account-created" element={<Navigate to="/register" replace />} />
+          <Route path="/account-created" element={<AccountCreated />} />
           <Route path="/login" element={<Login />} />
           <Route path="/password-recovery" element={<PasswordRecovery />} />
           <Route path="/reset-password" element={<ResetPassword />} />

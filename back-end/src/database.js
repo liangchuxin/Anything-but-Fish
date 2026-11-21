@@ -1,6 +1,8 @@
-import mongoose from "mongoose";
+"use strict";
 
-export function createModels(connection) {
+const mongoose = require("mongoose");
+
+function createModels(connection) {
   const { Schema } = mongoose;
   const userSchema = new Schema({
     email: { type: String, required: true, lowercase: true, trim: true, maxlength: 254, unique: true },
@@ -27,7 +29,7 @@ export function createModels(connection) {
   };
 }
 
-export async function connectDatabase({ mongodbUri, dbName }) {
+async function connectDatabase({ mongodbUri, dbName }) {
   const connection = mongoose.createConnection(mongodbUri, {
     dbName, serverSelectionTimeoutMS: 10000, maxPoolSize: 10, bufferCommands: false,
   });
@@ -42,3 +44,5 @@ export async function connectDatabase({ mongodbUri, dbName }) {
     throw error;
   }
 }
+
+module.exports = { createModels, connectDatabase };

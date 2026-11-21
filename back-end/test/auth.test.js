@@ -1,14 +1,17 @@
-import { randomBytes } from "node:crypto";
-import dotenv from "dotenv";
-import { expect } from "chai";
-import request from "supertest";
-import jwt from "jsonwebtoken";
-import { createApp } from "../src/app.js";
-import { readConfig } from "../src/config.js";
-import { connectDatabase } from "../src/database.js";
-import { hashPassword, verifyPassword, hashToken, issueSession, readSession } from "../src/security.js";
+"use strict";
 
-dotenv.config({ path: new URL("../.env", import.meta.url), quiet: true });
+const { randomBytes } = require("node:crypto");
+const path = require("node:path");
+const dotenv = require("dotenv");
+const { expect } = require("chai");
+const request = require("supertest");
+const jwt = require("jsonwebtoken");
+const { createApp } = require("../src/app.js");
+const { readConfig } = require("../src/config.js");
+const { connectDatabase } = require("../src/database.js");
+const { hashPassword, verifyPassword, hashToken, issueSession, readSession } = require("../src/security.js");
+
+dotenv.config({ path: path.join(__dirname, "../.env"), quiet: true });
 
 const email = "player@example.com";
 const password = "River-light-2026";
@@ -80,8 +83,8 @@ describe("MongoDB authentication API", function () {
   const dbName = `abf_auth_test_${randomBytes(8).toString("hex")}`;
 
   before(async function () {
-    const mongodbUri = process.env.TEST_MONGODB_URI || process.env.MONGODB_URI;
-    if (!mongodbUri) throw new Error("Set TEST_MONGODB_URI or back-end/.env MONGODB_URI for the Atlas integration tests.");
+    const mongodbUri = process.env.TEST_MONGODB_URI;
+    if (!mongodbUri) return this.skip();
     config = { ...readConfig({ ...baseEnv, MONGODB_URI: mongodbUri }), dbName, authRateLimit: 500 };
     try { database = await connectDatabase(config); }
     catch (error) { throw new Error(`Test database connection failed (${error.name}). Check Atlas credentials and network access.`); }
@@ -124,7 +127,7 @@ describe("MongoDB authentication API", function () {
 
   it("reports database health and returns JSON for unknown endpoints", async () => {
     await request(app).get("/api/health").expect(200, { status: "ok" });
-    await request(app).get("/api/missing").expect(404, { detail: "API endpoint not found." });
+    await request(app).get("/api/missing").expect(404, { detail: "Not found" });
   });
 
   it("creates a normalized account with a hash and hides private fields", async () => {

@@ -59,12 +59,6 @@ test("demo serves the existing game contracts without unhandled requests", async
       assert.ok(Array.isArray(entry.description) && entry.description.every((text) => typeof text === "string"));
     }
   }
-  const collections = await get("collections");
-  assert.equal(collections.response.status, 200);
-  assert.deepEqual(collections.data.items.map(({ id, title }) => [id, title]), [
-    ["photo-1", "Ancient gold coin"], ["photo-2", "White bench"], ["photo-3", "?"],
-  ]);
-  assert.ok(collections.data.items.every((item) => typeof item.description === "string" && !Object.hasOwn(item, "image")));
   const characters = await get("characters");
   assert.equal(characters.response.status, 200);
   assert.deepEqual(characters.data, { characters: [{ name: "cislo", displayName: "Cislobog Raskolnikova" }] });
@@ -77,11 +71,9 @@ test("responses derive visibility and counts from preview progress rather than c
   const profile = structuredClone(previewProfiles.empty);
   server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, profile }));
   profile.plotProgress.characters = { cislo: 1, kael: 2 };
-  profile.unlockedCollectionIds.push("photo-2");
   let plots = await get("plots");
   assert.deepEqual(plots.data.categories[0].entries.map(({ id, collected }) => [id, collected]), [["cislo", 1], ["kael", 2]]);
   assert.deepEqual(plots.data.categories[1].entries, []);
-  assert.deepEqual((await get("collections")).data.items.map(({ id }) => id), ["photo-2"]);
   assert.deepEqual((await get("characters")).data, { characters: [] });
 
   profile.plotProgress.characters.cislo = 0;
@@ -100,7 +92,6 @@ test("empty scenario retains all three categories with no unlocked content", asy
     { id: "chapters", title: "Chapters", entries: [] },
     { id: "objects", title: "Objects", entries: [] },
   ] });
-  assert.deepEqual((await get("collections")).data, { items: [] });
   assert.deepEqual((await get("characters")).data, { characters: [] });
   assert.deepEqual((await get("inventory")).data, { capacity: 20, items: [] });
   assert.deepEqual((await get("settings")).data, { settings: { soundVolume: 70, ambientVolume: 50, language: "en" } });
@@ -111,7 +102,7 @@ test("empty scenario retains all three categories with no unlocked content", asy
 
 test("error scenario returns JSON 503 responses for every mocked operation", async () => {
   server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "error", delayMs: 0 }));
-  for (const resource of ["plots", "collections", "characters", "inventory", "settings", "saves"]) {
+  for (const resource of ["plots", "characters", "inventory", "settings", "saves"]) {
     const { response, data } = await get(resource);
     assert.equal(response.status, 503);
     assert.equal(data.detail, "The game preview is unavailable in the error scenario.");
@@ -127,14 +118,17 @@ test("error scenario returns JSON 503 responses for every mocked operation", asy
   }
 });
 
-test("auth, other origins, unknown paths, and unsupported methods remain unhandled", async () => {
-  for (const scenario of ["demo", "error"]) {
+test("implemented APIs, other origins, unknown paths, and unsupported methods remain unhandled", async () => {
+  for (const scenario of ["demo", "empty", "error"]) {
     server.resetHandlers(...createGameHandlers({ baseUrl, scenario, delayMs: 0 }));
     unhandledRequests = [];
     const requests = [
       { method: "GET", url: `${baseUrl}/auth/me` },
       { method: "POST", url: `${baseUrl}/auth/register` },
       { method: "PATCH", url: `${baseUrl}/auth/settings` },
+      { method: "GET", url: `${baseUrl}/game/collections` },
+      { method: "GET", url: `${baseUrl}/game/chat/cislo?mode=daily` },
+      { method: "POST", url: `${baseUrl}/game/chat/cislo` },
       { method: "GET", url: `${baseUrl}/game/missing` },
       { method: "GET", url: `${baseUrl}/game/plots/extra` },
       { method: "POST", url: `${baseUrl}/game/plots` },

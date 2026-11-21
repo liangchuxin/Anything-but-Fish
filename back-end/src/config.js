@@ -1,3 +1,5 @@
+"use strict";
+
 function integer(value, fallback, name, min, max) {
   const number = Number(value ?? fallback);
   if (!Number.isSafeInteger(number) || number < min || number > max) {
@@ -21,12 +23,13 @@ function httpUrl(value, name) {
   return url;
 }
 
-export function readConfig(env = process.env) {
+function readConfig(env = process.env, { requireDatabase = true } = {}) {
   const mongodbUri = env.MONGODB_URI;
-  if (!/^mongodb(?:\+srv)?:\/\//.test(mongodbUri ?? "") || /<[^>]+>/.test(mongodbUri)) {
+  const authEnabled = Boolean(mongodbUri || env.JWT_SECRET);
+  if ((requireDatabase || authEnabled) && (!/^mongodb(?:\+srv)?:\/\//.test(mongodbUri ?? "") || /<[^>]+>/.test(mongodbUri))) {
     throw new Error("Set MONGODB_URI to a complete MongoDB connection string in back-end/.env.");
   }
-  if (!env.JWT_SECRET || env.JWT_SECRET.length < 32 || /^(replace|change|your)[_-]/i.test(env.JWT_SECRET)) {
+  if ((requireDatabase || authEnabled) && (!env.JWT_SECRET || env.JWT_SECRET.length < 32 || /^(replace|change|your)[_-]/i.test(env.JWT_SECRET))) {
     throw new Error("Set JWT_SECRET to a random secret of at least 32 characters.");
   }
   const frontends = (env.FRONTEND_ORIGIN || "http://localhost:5173").split(",").map((value) => {
@@ -47,7 +50,7 @@ export function readConfig(env = process.env) {
   const dbName = env.MONGODB_DB_NAME || "anything_but_fish";
   if (!/^[A-Za-z0-9_-]+$/.test(dbName)) throw new Error("MONGODB_DB_NAME contains unsupported characters.");
   return {
-    mongodbUri, dbName, jwtSecret: env.JWT_SECRET, cookieName, secureCookies, sameSite,
+    authEnabled, mongodbUri, dbName, jwtSecret: env.JWT_SECRET, cookieName, secureCookies, sameSite,
     frontendOrigin: frontends[0].origin,
     frontendOrigins: frontends.map((url) => url.origin),
     port: integer(env.PORT, 8000, "PORT", 1, 65535),
@@ -56,3 +59,5 @@ export function readConfig(env = process.env) {
     authRateLimit: 30,
   };
 }
+
+module.exports = { readConfig };

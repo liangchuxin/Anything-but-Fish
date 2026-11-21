@@ -1,32 +1,38 @@
-import dotenv from "dotenv";
-import { fileURLToPath } from "node:url";
-import { readConfig } from "./config.js";
-import { connectDatabase } from "./database.js";
-import { createApp } from "./app.js";
+"use strict";
 
-dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)), quiet: true });
+const path = require("node:path");
+require("dotenv").config({ path: path.join(__dirname, "../.env"), quiet: true });
+const { readConfig } = require("./config");
+const { connectDatabase } = require("./database");
+const { createApp } = require("./app");
 
 let database;
-try {
-  const config = readConfig();
-  database = await connectDatabase(config);
-  const app = createApp({ config, models: database.models });
+
+async function start() {
+  const config = readConfig(process.env, { requireDatabase: process.env.NODE_ENV === "production" });
+  if (config.authEnabled) database = await connectDatabase(config);
+  const app = createApp({ config, models: database?.models });
   const server = app.listen(config.port, () => {
-    console.log(`Authentication API listening on port ${config.port}; MongoDB connected.`);
+    console.log(`API listening on port ${config.port}; ${database ? "MongoDB connected" : "authentication unavailable (MongoDB not configured)"}.`);
   });
   server.on("error", async (error) => {
     console.error(`API server could not listen (${error.code || error.name}).`);
-    await database.connection.close();
+    if (database) await database.connection.close();
     process.exitCode = 1;
   });
   for (const signal of ["SIGINT", "SIGTERM"]) {
     process.once(signal, () => {
-      server.close(async () => { await database.connection.close(); process.exit(0); });
+      server.close(async () => {
+        if (database) await database.connection.close();
+        process.exit(0);
+      });
     });
   }
-} catch (error) {
-  // Driver errors may contain credentials. Print config errors, never driver messages.
+}
+
+start().catch(async (error) => {
+  // Database driver messages can contain credentials; only configuration errors are printed in full.
   console.error(error.name === "Error" ? error.message : `MongoDB startup failed (${error.name}). Check credentials and Atlas network access.`);
   if (database) await database.connection.close();
   process.exitCode = 1;
-}
+});
