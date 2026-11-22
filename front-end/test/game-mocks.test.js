@@ -3,8 +3,7 @@ import { performance } from "node:perf_hooks";
 import { after, before, beforeEach, test } from "node:test";
 import { setupServer } from "msw/node";
 import { createGameHandlers } from "../src/mocks/handlers.js";
-import { plotCatalog } from "../src/mocks/fixtures/catalog.js";
-import { previewProfiles } from "../src/mocks/fixtures/profiles.js";
+import { chapterPreview, initialChapterProgress } from "../src/mocks/fixtures/chapter.js";
 
 const baseUrl = "http://game.test/api";
 const server = setupServer();
@@ -44,50 +43,84 @@ async function write(resource, method, body) {
   return { response, data: await response.json() };
 }
 
-test("explicit standalone demo serves characters alongside the unfinished game contracts", async () => {
-  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, mockCharacters: true }));
+test("standalone demo begins with Cislo and no earned inventory, collections, or chapter archive", async () => {
+  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, mockProgress: true }));
   const plots = await get("plots");
   assert.equal(plots.response.status, 200);
   assert.deepEqual(plots.data.categories.map(({ id, title, entries }) => [id, title, entries.length]), [
-    ["characters", "Characters", 8], ["chapters", "Chapters", 6], ["objects", "Objects", 6],
+    ["characters", "Characters", 1], ["chapters", "Chapters", 0], ["objects", "Objects", 0],
   ]);
-  for (const { entries } of plots.data.categories) {
-    for (const entry of entries) {
-      assert.deepEqual(Object.keys(entry).sort(), ["collected", "description", "id", "title", "total"]);
-      assert.equal(typeof entry.id, "string");
-      assert.equal(typeof entry.title, "string");
-      assert.ok(Number.isInteger(entry.collected) && entry.collected > 0 && entry.collected <= entry.total);
-      assert.ok(Array.isArray(entry.description) && entry.description.every((text) => typeof text === "string"));
-    }
-  }
-  const characters = await get("characters");
-  assert.equal(characters.response.status, 200);
-  assert.deepEqual(characters.data, { characters: [{ name: "cislo", displayName: "Cislobog Raskolnikova" }] });
+  assert.equal(plots.data.categories[0].entries[0].id, "cislo");
+  assert.deepEqual((await get("characters")).data, { characters: [{ name: "cislo", displayName: "Cislobog Raskolnikova" }] });
+  assert.deepEqual((await get("inventory")).data, { capacity: 20, items: [] });
+  assert.deepEqual((await get("collections")).data, { items: [] });
+  assert.deepEqual((await get(`chapters/${chapterPreview.id}/progress`)).data, initialChapterProgress);
   assert.equal(plots.response.headers.get("Cache-Control"), "no-store");
   assert.equal(plots.response.headers.get("X-Mock-Data"), "shared-preview");
   assert.deepEqual(unhandledRequests, []);
 });
 
-test("responses derive visibility and counts from preview progress rather than content definitions", async () => {
-  const profile = structuredClone(previewProfiles.empty);
-  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, profile, mockCharacters: true }));
-  profile.plotProgress.characters = { cislo: 1, kael: 2 };
-  let plots = await get("plots");
-  assert.deepEqual(plots.data.categories[0].entries.map(({ id, collected }) => [id, collected]), [["cislo", 1], ["kael", 2]]);
-  assert.deepEqual(plots.data.categories[1].entries, []);
-  assert.deepEqual((await get("characters")).data, { characters: [] });
-
-  profile.plotProgress.characters.cislo = 0;
-  profile.plotProgress.characters.kael = 99;
-  profile.unlockedCharacterIds.push("cislo");
-  plots = await get("plots");
-  assert.deepEqual(plots.data.categories[0].entries.map(({ id, collected }) => [id, collected]), [["kael", 3]]);
-  assert.equal((await get("characters")).data.characters[0].name, "cislo");
-  assert.ok(plotCatalog.every(({ entries }) => entries.every((entry) => !Object.hasOwn(entry, "collected"))));
+test("reading first appearances unlocks each character and the matching archive entry together", async () => {
+  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, mockProgress: true }));
+  const progressPath = `chapters/${chapterPreview.id}/progress`;
+  await write(progressPath, "POST", { entryId: 1001 });
+  assert.equal((await get("characters")).data.characters.length, 1);
+  const ivan = await write(progressPath, "POST", { entryId: 1002 });
+  assert.equal(ivan.response.status, 200);
+  assert.equal(ivan.data.furthestEntryId, 1002);
+  assert.deepEqual((await get("characters")).data.characters.map(({ name }) => name), ["cislo", "ivan"]);
+  assert.deepEqual((await get("plots")).data.categories[0].entries.map(({ id }) => id), ["cislo", "ivan"]);
+  await write(progressPath, "POST", { entryId: 1003 });
+  await write(progressPath, "POST", { entryId: 1003 });
+  const earlier = await write(progressPath, "POST", { entryId: 1001 });
+  assert.equal(earlier.data.entryId, 1001);
+  assert.equal(earlier.data.furthestEntryId, 1003);
+  assert.deepEqual((await get("characters")).data.characters.map(({ name }) => name), ["cislo", "ona", "ivan"]);
+  assert.deepEqual((await get("plots")).data.categories[0].entries.map(({ id }) => id), ["cislo", "ona", "ivan"]);
+  assert.deepEqual((await get("inventory")).data.items, []);
 });
 
-test("empty scenario retains all three categories with no unlocked content", async () => {
-  server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "empty", delayMs: 0, mockCharacters: true }));
+test("chapter completion awards one coin and reveals the chapter archive and collection once", async () => {
+  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, mockProgress: true }));
+  const chapterPath = `chapters/${chapterPreview.id}`;
+  assert.equal((await write(`${chapterPath}/complete`, "POST", {})).response.status, 409);
+  for (const entryId of chapterPreview.entryIds) {
+    assert.equal((await write(`${chapterPath}/progress`, "POST", { entryId })).response.status, 200);
+  }
+  const results = await Promise.all(Array.from({ length: 3 }, () => write(`${chapterPath}/complete`, "POST", {})));
+  assert.equal(results.filter(({ data }) => !data.alreadyCompleted).length, 1);
+  assert.deepEqual(results.flatMap(({ data }) => data.awardedItems), [{ itemId: "ancient-coin", count: 1 }]);
+  const inventory = (await get("inventory")).data;
+  assert.equal(inventory.capacity, 20);
+  assert.deepEqual(inventory.items.map(({ id, icon, count }) => ({ id, icon, count })), [{ id: "ancient-coin", icon: "coin", count: 1 }]);
+  assert.deepEqual((await get("collections")).data.items.map(({ id }) => id), ["photo-1"]);
+  const categories = (await get("plots")).data.categories;
+  assert.deepEqual(categories[1].entries.map(({ id }) => id), ["ancient-gold-coin"]);
+  assert.deepEqual(categories[2].entries.map(({ id }) => id), ["ancient-coin"]);
+  const finished = (await get(`${chapterPath}/progress`)).data;
+  assert.ok(Number.isFinite(Date.parse(finished.completedAt)));
+  await write(`${chapterPath}/progress`, "POST", { entryId: 1001 });
+  assert.equal((await get(`${chapterPath}/progress`)).data.completedAt, finished.completedAt);
+  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, mockProgress: true }));
+  assert.deepEqual((await get("inventory")).data.items, []);
+  assert.deepEqual((await get(`${chapterPath}/progress`)).data, initialChapterProgress);
+});
+
+test("demo validates chapter requests and rejects skipping unread entries", async () => {
+  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0, mockProgress: true }));
+  const chapterPath = `chapters/${chapterPreview.id}`;
+  for (const body of [null, {}, { entryId: "1001" }, { entryId: 1.5 }, { entryId: 999 }, { entryId: 1001, factIds: ["secret"] }]) {
+    assert.equal((await write(`${chapterPath}/progress`, "POST", body)).response.status, 400);
+  }
+  assert.equal((await write(`${chapterPath}/progress`, "POST", { entryId: 1047 })).response.status, 409);
+  assert.equal((await get("chapters/unknown/progress")).response.status, 404);
+  assert.equal((await write("chapters/unknown/progress", "POST", { entryId: 1001 })).response.status, 404);
+  assert.equal((await write(`${chapterPath}/complete`, "POST", { itemId: "ancient-coin", count: 999 })).response.status, 400);
+  assert.deepEqual((await get(`${chapterPath}/progress`)).data, initialChapterProgress);
+});
+
+test("empty scenario starts without unlocked content and preserves mock settings and save contracts", async () => {
+  server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "empty", delayMs: 0, mockProgress: true }));
   assert.deepEqual((await get("plots")).data, { categories: [
     { id: "characters", title: "Characters", entries: [] },
     { id: "chapters", title: "Chapters", entries: [] },
@@ -95,6 +128,7 @@ test("empty scenario retains all three categories with no unlocked content", asy
   ] });
   assert.deepEqual((await get("characters")).data, { characters: [] });
   assert.deepEqual((await get("inventory")).data, { capacity: 20, items: [] });
+  assert.deepEqual((await get("collections")).data, { items: [] });
   assert.deepEqual((await get("settings")).data, { settings: { soundVolume: 70, ambientVolume: 50, language: "en" } });
   assert.deepEqual((await get("saves")).data, { slots: [
     { id: "slot-1", save: null }, { id: "slot-2", save: null }, { id: "slot-3", save: null },
@@ -102,8 +136,8 @@ test("empty scenario retains all three categories with no unlocked content", asy
 });
 
 test("error scenario returns JSON 503 responses for every mocked operation", async () => {
-  server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "error", delayMs: 0, mockCharacters: true }));
-  for (const resource of ["plots", "characters", "inventory", "settings", "saves"]) {
+  server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "error", delayMs: 0, mockProgress: true }));
+  for (const resource of ["plots", "characters", "inventory", "collections", "settings", "saves", `chapters/${chapterPreview.id}/progress`]) {
     const { response, data } = await get(resource);
     assert.equal(response.status, 503);
     assert.equal(data.detail, "The game preview is unavailable in the error scenario.");
@@ -112,6 +146,8 @@ test("error scenario returns JSON 503 responses for every mocked operation", asy
     ["settings", "PATCH", { soundVolume: 0, ambientVolume: 0, language: "zh" }],
     ["saves/slot-3", "PUT", { chapterTitle: "The Coin", page: 4 }],
     ["saves/slot-1/load", "POST"],
+    [`chapters/${chapterPreview.id}/progress`, "POST", { entryId: 1001 }],
+    [`chapters/${chapterPreview.id}/complete`, "POST", {}],
   ]) {
     const { response, data } = await write(resource, method, body);
     assert.equal(response.status, 503);
@@ -119,7 +155,7 @@ test("error scenario returns JSON 503 responses for every mocked operation", asy
   }
 });
 
-test("implemented APIs, other origins, unknown paths, and unsupported methods remain unhandled", async () => {
+test("ordinary development bypasses real account APIs, other origins, and unsupported methods", async () => {
   for (const scenario of ["demo", "empty", "error"]) {
     server.resetHandlers(...createGameHandlers({ baseUrl, scenario, delayMs: 0 }));
     unhandledRequests = [];
@@ -128,7 +164,12 @@ test("implemented APIs, other origins, unknown paths, and unsupported methods re
       { method: "POST", url: `${baseUrl}/auth/register` },
       { method: "PATCH", url: `${baseUrl}/auth/settings` },
       { method: "GET", url: `${baseUrl}/game/collections` },
+      { method: "GET", url: `${baseUrl}/game/plots` },
       { method: "GET", url: `${baseUrl}/game/characters` },
+      { method: "GET", url: `${baseUrl}/game/inventory` },
+      { method: "GET", url: `${baseUrl}/game/chapters/${chapterPreview.id}/progress` },
+      { method: "POST", url: `${baseUrl}/game/chapters/${chapterPreview.id}/progress` },
+      { method: "POST", url: `${baseUrl}/game/chapters/${chapterPreview.id}/complete` },
       { method: "GET", url: `${baseUrl}/game/chat/cislo?mode=daily` },
       { method: "POST", url: `${baseUrl}/game/chat/cislo` },
       { method: "GET", url: `${baseUrl}/game/missing` },
@@ -142,25 +183,11 @@ test("implemented APIs, other origins, unknown paths, and unsupported methods re
     ];
     for (const { method, url } of requests) {
       const response = await fetch(url, { method });
-      // The 500 is produced only by this test's network guard, not a game handler.
       assert.equal(response.status, 500);
       assert.equal((await response.json()).message, blockedTransportMessage);
       assert.equal(response.headers.get("X-Mock-Data"), null);
     }
     assert.deepEqual(unhandledRequests, requests);
-  }
-});
-
-test("inventory supplies five relics with supported icon IDs and capacity", async () => {
-  const { response, data } = await get("inventory");
-  assert.equal(response.status, 200);
-  assert.equal(data.capacity, 20);
-  assert.equal(data.items.length, 5);
-  assert.deepEqual(data.items.map((item) => item.icon).sort(), ["coin", "key", "notebook", "photograph", "tape"]);
-  for (const item of data.items) {
-    assert.deepEqual(Object.keys(item).sort(), ["count", "description", "icon", "id", "name", "type"]);
-    assert.ok(Number.isInteger(item.count) && item.count > 0);
-    assert.ok(item.name && item.description && item.type);
   }
 });
 
@@ -234,7 +261,7 @@ test("invalid saves and unknown slots fail without overwriting progress", async 
 test("the configured response delay is applied", async () => {
   server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 40 }));
   const startedAt = performance.now();
-  await get("inventory");
+  await get("settings");
   assert.ok(performance.now() - startedAt >= 35);
 });
 
@@ -247,7 +274,7 @@ test("invalid scenario and delay settings fail before request interception start
 });
 
 test("a custom API base with a trailing slash is matched without broadening interception", async () => {
-  server.resetHandlers(...createGameHandlers({ baseUrl: "http://game.test/custom/api/", delayMs: 0, mockCharacters: true }));
+  server.resetHandlers(...createGameHandlers({ baseUrl: "http://game.test/custom/api/", delayMs: 0, mockProgress: true }));
   const response = await fetch("http://game.test/custom/api/game/characters");
   assert.equal(response.status, 200);
   assert.equal((await response.json()).characters[0].name, "cislo");

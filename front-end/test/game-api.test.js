@@ -69,7 +69,7 @@ test("cancellation stays distinguishable from a server error", async () => {
 
 test("new game reads validate inventory, settings, and save slots", async () => {
   const responses = {
-    inventory: { capacity: 20, items: [{ id: "key", name: "Key", type: "Key", count: 1, description: "An old key.", icon: "key" }] },
+    inventory: { capacity: 20, items: [{ id: "ancient-coin", name: "Ancient gold coin", type: "Relic", count: 1, description: "A worn coin.", icon: "coin" }] },
     settings: { settings: { soundVolume: 70, ambientVolume: 50, language: "en" } },
     saves: { slots: [{ id: "slot-1", save: { chapterTitle: "The Coin", page: 1, savedAt: "2026-11-04T14:30:00.000Z" } }, { id: "slot-2", save: null }] },
   };

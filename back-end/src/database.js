@@ -2,6 +2,8 @@
 
 const mongoose = require("mongoose");
 const { characters } = require("../characters/profiles");
+const { inventoryCapacity, itemCatalog } = require("./data/items");
+const { chapters } = require("./data/chapters");
 
 function createModels(connection) {
   const { Schema } = mongoose;
@@ -34,10 +36,40 @@ function createModels(connection) {
     unlockedAt: { type: Date, required: true },
   }, { _id: false });
 
+  const inventoryItemSchema = new Schema({
+    itemId: { type: String, required: true, enum: itemCatalog.map((item) => item.id) },
+    count: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+    acquiredAt: { type: Date, required: true, default: Date.now },
+  }, { _id: false });
+
+  const chapterProgressSchema = new Schema({
+    chapterId: { type: String, required: true, enum: chapters.map((chapter) => chapter.id) },
+    lastEntryId: { type: Number, required: true, validate: Number.isSafeInteger },
+    furthestEntryId: { type: Number, required: true, validate: Number.isSafeInteger },
+    completedAt: { type: Date, default: null },
+  }, { _id: false });
+
+  const rewardClaimSchema = new Schema({
+    rewardId: { type: String, required: true, maxlength: 120 },
+    claimedAt: { type: Date, required: true },
+  }, { _id: false });
+
   const playerProfileSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
     characterProgress: { type: [characterProgressSchema], default: [] },
     storyUnlocks: { type: [storyUnlockSchema], default: [] },
+    chapterProgress: { type: [chapterProgressSchema], default: [] },
+    rewardClaims: { type: [rewardClaimSchema], default: [] },
+    gameRevision: { type: Number, default: 0, min: 0, validate: Number.isSafeInteger },
+    inventory: {
+      type: [inventoryItemSchema],
+      default: [],
+      validate: {
+        validator: (items) => items.length <= inventoryCapacity
+          && new Set(items.map((item) => item.itemId)).size === items.length,
+        message: "Inventory must fit the backpack and contain one entry per item.",
+      },
+    },
   }, { timestamps: true, versionKey: false });
 
   return {

@@ -8,12 +8,17 @@ const { readConfig } = require("./config");
 const { createAuthRouter, readAccount, HttpError } = require("./routes/auth");
 const collectionsRouter = require("./routes/collections");
 const charactersRouter = require("./routes/characters");
+const inventoryRouter = require("./routes/inventory");
+const chaptersRouter = require("./routes/chapters");
+const unlocksRouter = require("./routes/unlocks");
+const plotsRouter = require("./routes/plots");
 const chatRouter = require("./routes/chat");
 const { ensurePlayerProfile } = require("./services/playerProfiles");
 
 function createApp({ config = readConfig({}, { requireDatabase: false }), models, logger = console, generateChatReply } = {}) {
   const app = express();
   app.locals.generateChatReply = generateChatReply;
+  app.locals.models = models;
   const frontendOrigins = config.frontendOrigins ?? [config.frontendOrigin];
   app.disable("x-powered-by");
   app.set("trust proxy", config.trustProxy);
@@ -47,18 +52,22 @@ function createApp({ config = readConfig({}, { requireDatabase: false }), models
     });
   }
 
-  app.use("/api/game/collections", collectionsRouter);
   async function requirePlayerProfile(req, res, next) {
     if (!models?.PlayerProfile || models.PlayerProfile.db.readyState !== 1) {
       throw new HttpError(503, "Player progress is unavailable. Check the server's database configuration.");
     }
     const user = await readAccount(req, { config, models });
-    if (!user) throw new HttpError(401, "Please log in to access your characters and chat.");
+    if (!user) throw new HttpError(401, "Please log in to access your game progress.");
     req.user = { id: user.id };
     res.locals.playerProfile = await ensurePlayerProfile(models, user._id);
     next();
   }
   app.use("/api/game/characters", requirePlayerProfile, charactersRouter);
+  app.use("/api/game/collections", requirePlayerProfile, collectionsRouter);
+  app.use("/api/game/plots", requirePlayerProfile, plotsRouter);
+  app.use("/api/game/chapters", requirePlayerProfile, chaptersRouter);
+  app.use("/api/game/unlocks", requirePlayerProfile, unlocksRouter);
+  app.use("/api/game/inventory", requirePlayerProfile, inventoryRouter);
   app.use("/api/game/chat", requirePlayerProfile, chatRouter);
 
   app.use((_req, res) => res.status(404).json({ detail: "Not found" }));
