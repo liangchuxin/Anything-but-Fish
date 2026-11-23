@@ -13,6 +13,7 @@ const chaptersRouter = require("./routes/chapters");
 const unlocksRouter = require("./routes/unlocks");
 const plotsRouter = require("./routes/plots");
 const chatRouter = require("./routes/chat");
+const { createSettingsRouter } = require("./routes/settings");
 const { ensurePlayerProfile } = require("./services/playerProfiles");
 
 function createApp({ config = readConfig({}, { requireDatabase: false }), models, logger = console, generateChatReply } = {}) {
@@ -26,7 +27,7 @@ function createApp({ config = readConfig({}, { requireDatabase: false }), models
   app.use(cors({
     origin: frontendOrigins,
     credentials: true,
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PATCH"],
     allowedHeaders: ["Content-Type", "Accept"],
   }));
   app.use(cookieParser());
@@ -69,6 +70,7 @@ function createApp({ config = readConfig({}, { requireDatabase: false }), models
   app.use("/api/game/unlocks", requirePlayerProfile, unlocksRouter);
   app.use("/api/game/inventory", requirePlayerProfile, inventoryRouter);
   app.use("/api/game/chat", requirePlayerProfile, chatRouter);
+  app.use("/api/game/settings", requirePlayerProfile, createSettingsRouter());
 
   app.use((_req, res) => res.status(404).json({ detail: "Not found" }));
   app.use((error, _req, res, _next) => {

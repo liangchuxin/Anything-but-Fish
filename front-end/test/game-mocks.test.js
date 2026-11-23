@@ -119,7 +119,7 @@ test("demo validates chapter requests and rejects skipping unread entries", asyn
   assert.deepEqual((await get(`${chapterPath}/progress`)).data, initialChapterProgress);
 });
 
-test("empty scenario starts without unlocked content and preserves mock settings and save contracts", async () => {
+test("empty scenario starts without unlocked content and preserves mock save contracts", async () => {
   server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "empty", delayMs: 0, mockProgress: true }));
   assert.deepEqual((await get("plots")).data, { categories: [
     { id: "characters", title: "Characters", entries: [] },
@@ -129,7 +129,6 @@ test("empty scenario starts without unlocked content and preserves mock settings
   assert.deepEqual((await get("characters")).data, { characters: [] });
   assert.deepEqual((await get("inventory")).data, { capacity: 20, items: [] });
   assert.deepEqual((await get("collections")).data, { items: [] });
-  assert.deepEqual((await get("settings")).data, { settings: { soundVolume: 70, ambientVolume: 50, language: "en" } });
   assert.deepEqual((await get("saves")).data, { slots: [
     { id: "slot-1", save: null }, { id: "slot-2", save: null }, { id: "slot-3", save: null },
   ] });
@@ -137,13 +136,12 @@ test("empty scenario starts without unlocked content and preserves mock settings
 
 test("error scenario returns JSON 503 responses for every mocked operation", async () => {
   server.resetHandlers(...createGameHandlers({ baseUrl, scenario: "error", delayMs: 0, mockProgress: true }));
-  for (const resource of ["plots", "characters", "inventory", "collections", "settings", "saves", `chapters/${chapterPreview.id}/progress`]) {
+  for (const resource of ["plots", "characters", "inventory", "collections", "saves", `chapters/${chapterPreview.id}/progress`]) {
     const { response, data } = await get(resource);
     assert.equal(response.status, 503);
     assert.equal(data.detail, "The game preview is unavailable in the error scenario.");
   }
   for (const [resource, method, body] of [
-    ["settings", "PATCH", { soundVolume: 0, ambientVolume: 0, language: "zh" }],
     ["saves/slot-3", "PUT", { chapterTitle: "The Coin", page: 4 }],
     ["saves/slot-1/load", "POST"],
     [`chapters/${chapterPreview.id}/progress`, "POST", { entryId: 1001 }],
@@ -167,6 +165,8 @@ test("ordinary development bypasses real account APIs, other origins, and unsupp
       { method: "GET", url: `${baseUrl}/game/plots` },
       { method: "GET", url: `${baseUrl}/game/characters` },
       { method: "GET", url: `${baseUrl}/game/inventory` },
+      { method: "GET", url: `${baseUrl}/game/settings` },
+      { method: "PATCH", url: `${baseUrl}/game/settings` },
       { method: "GET", url: `${baseUrl}/game/chapters/${chapterPreview.id}/progress` },
       { method: "POST", url: `${baseUrl}/game/chapters/${chapterPreview.id}/progress` },
       { method: "POST", url: `${baseUrl}/game/chapters/${chapterPreview.id}/complete` },
@@ -189,34 +189,6 @@ test("ordinary development bypasses real account APIs, other origins, and unsupp
     }
     assert.deepEqual(unhandledRequests, requests);
   }
-});
-
-test("settings updates persist within the handler instance and reset on reinitialization", async () => {
-  const changed = { soundVolume: 0, ambientVolume: 100, language: "zh" };
-  const result = await write("settings", "PATCH", changed);
-  assert.equal(result.response.status, 200);
-  assert.deepEqual(result.data, { settings: changed });
-  assert.deepEqual((await get("settings")).data, { settings: changed });
-  server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 0 }));
-  assert.deepEqual((await get("settings")).data, { settings: { soundVolume: 70, ambientVolume: 50, language: "en" } });
-});
-
-test("invalid settings bodies are rejected without changing previous values", async () => {
-  const defaults = (await get("settings")).data;
-  for (const body of [
-    null, [], {}, { soundVolume: 70, ambientVolume: 50 },
-    { soundVolume: -1, ambientVolume: 50, language: "en" },
-    { soundVolume: 70, ambientVolume: 101, language: "en" },
-    { soundVolume: 1.5, ambientVolume: 50, language: "en" },
-    { soundVolume: "70", ambientVolume: 50, language: "en" },
-    { soundVolume: 70, ambientVolume: 50, language: "fr" },
-    { soundVolume: 70, ambientVolume: 50, language: "en", darkMode: true },
-  ]) {
-    assert.equal((await write("settings", "PATCH", body)).response.status, 400);
-  }
-  const malformed = await fetch(`${baseUrl}/game/settings`, { method: "PATCH", body: "{" });
-  assert.equal(malformed.status, 400);
-  assert.deepEqual((await get("settings")).data, defaults);
 });
 
 test("save and load update slot contents in memory with a current timestamp", async () => {
@@ -261,7 +233,7 @@ test("invalid saves and unknown slots fail without overwriting progress", async 
 test("the configured response delay is applied", async () => {
   server.resetHandlers(...createGameHandlers({ baseUrl, delayMs: 40 }));
   const startedAt = performance.now();
-  await get("settings");
+  await get("saves");
   assert.ok(performance.now() - startedAt >= 35);
 });
 

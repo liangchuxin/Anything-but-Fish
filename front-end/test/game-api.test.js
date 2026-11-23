@@ -4,6 +4,14 @@ import { gameRequest, saveGame, loadGame, updateSettings } from "../src/lib/game
 
 afterEach(() => mock.restoreAll());
 
+const settingsContent = {
+  labels: {
+    en: { title: "Settings", sound: "Sound effects", ambient: "Ambient sound", language: "Language", apply: "Apply settings", saving: "Applying…", saved: "Settings applied.", timeout: "Please try again." },
+    zh: { title: "设置", sound: "音效音量", ambient: "环境音音量", language: "语言", apply: "应用设置", saving: "正在应用…", saved: "设置已应用。", timeout: "请重试。" },
+  },
+  languages: [{ value: "en", label: "English" }, { value: "zh", label: "Chinese" }],
+};
+
 test("game requests use the API and preserve the cookie and cancellation contract", async () => {
   const signal = new AbortController().signal;
   const response = { characters: [{ name: "cislo", displayName: "Cislobog Raskolnikova", unlockedAt: "2026-11-20T12:00:00.000Z" }] };
@@ -70,7 +78,7 @@ test("cancellation stays distinguishable from a server error", async () => {
 test("new game reads validate inventory, settings, and save slots", async () => {
   const responses = {
     inventory: { capacity: 20, items: [{ id: "ancient-coin", name: "Ancient gold coin", type: "Relic", count: 1, description: "A worn coin.", icon: "coin" }] },
-    settings: { settings: { soundVolume: 70, ambientVolume: 50, language: "en" } },
+    settings: { settings: { soundVolume: 70, ambientVolume: 50, language: "en" }, ...settingsContent },
     saves: { slots: [{ id: "slot-1", save: { chapterTitle: "The Coin", page: 1, savedAt: "2026-11-04T14:30:00.000Z" } }, { id: "slot-2", save: null }] },
   };
   mock.method(globalThis, "fetch", async (url) => Response.json(responses[url.split("/").pop()]));
@@ -99,12 +107,12 @@ test("write helpers preserve JSON, cookie, cache, and cancellation contracts", a
     assert.equal(options.headers.Accept, "application/json");
     if (options.body !== undefined) assert.equal(options.headers["Content-Type"], "application/json");
     if (url.endsWith("/load")) return Response.json(position);
-    if (url.endsWith("/settings")) return Response.json({ settings });
+    if (url.endsWith("/settings")) return Response.json({ settings, ...settingsContent });
     return Response.json({ slots });
   });
   assert.deepEqual(await saveGame("slot-3", position, { signal }), { slots });
   assert.deepEqual(await loadGame("slot-3", { signal }), position);
-  assert.deepEqual(await updateSettings(settings, { signal }), { settings });
+  assert.deepEqual(await updateSettings(settings, { signal }), { settings, ...settingsContent });
   assert.deepEqual(calls.map(({ url, options }) => [url, options.method, options.body]), [
     ["/api/game/saves/slot-3", "PUT", JSON.stringify(position)],
     ["/api/game/saves/slot-3/load", "POST", undefined],
@@ -118,11 +126,24 @@ test("gameRequest supports explicit methods and bodies without changing the defa
   mock.method(globalThis, "fetch", async (_url, options) => {
     methods.push(options.method);
     if (options.method === "PATCH") assert.equal(options.body, JSON.stringify(settings));
-    return Response.json({ settings });
+    return Response.json({ settings, ...settingsContent });
   });
   await gameRequest("settings");
   await gameRequest("settings", { method: "PATCH", body: settings });
   assert.deepEqual(methods, ["GET", "PATCH"]);
+});
+
+test("settings require complete server labels and distinct language choices", async () => {
+  const settings = { soundVolume: 70, ambientVolume: 50, language: "en" };
+  mock.method(globalThis, "fetch", async () => Response.json({ settings }));
+  await assert.rejects(gameRequest("settings"), /invalid response/);
+  const response = { settings, ...structuredClone(settingsContent) };
+  response.labels.zh.sound = null;
+  globalThis.fetch.mock.mockImplementation(async () => Response.json(response));
+  await assert.rejects(gameRequest("settings"), /invalid response/);
+  response.labels.zh.sound = "音效音量";
+  response.languages[1].value = "en";
+  await assert.rejects(updateSettings(settings), /invalid response/);
 });
 
 test("save helpers report empty, missing, invalid, and failed requests clearly", async () => {
